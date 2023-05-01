@@ -3,7 +3,7 @@
 // *************************************************
 // * Configurble settings, change if needed
 // *************************************************
-const char* ssid     = "ccc";
+const char* ssid     = "cc";
 const char* password = "ccc";
 
 // * static ip adress
