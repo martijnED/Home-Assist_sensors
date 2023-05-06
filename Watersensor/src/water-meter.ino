@@ -21,9 +21,6 @@
 
 #include <math.h>
 
-#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
-// #define MIN_AVERAGE(X, Y) (((X+10) <= (Y) && (Y) > 10 ) ? (X) : ((Y+X)/2))
-struct data_buffer raw_data_buffer;
 
 #define ALPHA_COR 0.1 // Value between 0-1
 float mini_average(float x, float y) {
@@ -46,7 +43,7 @@ float mini_average(float x, float y) {
 //     return phase;
 // }
 
-float phase_iter(float phase, float a, float b, float c) {
+float phase_iter_float(float phase, float a, float b, float c) {
     // * Liter berekening
     // * Amplitude voor evenwichtspunt
     // * asin^2(σ)+bsin^2(σ+π/3)+c*sin^3(σ-π/3)
@@ -66,9 +63,34 @@ float phase_iter(float phase, float a, float b, float c) {
         return phase;
 }
 
+void phase_iter(int16_t a, int16_t b, int16_t c) {
+    int16_t pn[5];
+    if (phase & 1)
+        pn[0] = a + a - b - c,
+        pn[1] = b + b - a - c,
+        pn[2] = c + c - a - b;
+    else
+        pn[0] = b + c - a - a,
+        pn[1] = a + c - b - b,
+        pn[2] = a + b - c - c;
+    pn[3] = pn[0], pn[4] = pn[1];
+    int16_t i = phase > 2 ? phase - 3 : phase;
+    if (pn[i + 2] < pn[i + 1] && pn[i + 2] < pn[i])
+        if (pn[i + 1] > pn[i])
+            phase++;
+        else
+            phase--;
+    if (phase == 6)
+        liters++, phase = 0;
+    else if (phase == -1)
+        liters--, phase = 5;
+    else
+        return; // false
+    return; // true
+}
+
+
 int magic_code_box(float sen_a, float sen_b, float sen_c) {
-    static float prev_a = 0, prev_b = 0, prev_c = 0;
-    static float phase = 0;
 
     // * Calculate minimum value
     mina = mini_average(mina, sen_a);
@@ -82,34 +104,24 @@ int magic_code_box(float sen_a, float sen_b, float sen_c) {
     float c = sen_c - minc + amplitude;
 
 
-
-
-
     // * Get amount of liters
-    phase = phase_iter(phase, a, b, c);
-    // float    phase       = phase_iter(sen_a, sen_b, sen_c,  mina, minb, minc, 0.5, 50.0);
-    uint32_t mili_liters = ((uint32_t)((phase * 100) / PI2)) * 10;
-    mili_liters_total    = mili_liters;
+    phase_iter((int16_t)a, (int16_t)b, (int16_t)c);
 
-    prev_a = sen_a;
-    prev_b = sen_b;
-    prev_c = sen_c;
+    float liters_float = (float)liters + ((float)phase / 6.0);
 
-    // if ((old_sensor_value+1000) > mili_liters_total) {
-    //     old_sensor_value = mili_liters_total;
-    //     return 1;
-    // }
+    mili_liters_total = (uint32_t)(liters_float*1000);
 
     return 1;
 }
 
+int sender = 0;
 void do_water_measurment() {
 
     digitalWrite(LED, HIGH);
     delay(5);
-    uint32_t sen_a = analogReadMilliVolts(SENS_A);
-    uint32_t sen_b = analogReadMilliVolts(SENS_B);
-    uint32_t sen_c = analogReadMilliVolts(SENS_C);
+    sen_a = analogReadMilliVolts(SENS_A);
+    sen_b = analogReadMilliVolts(SENS_B);
+    sen_c = analogReadMilliVolts(SENS_C);
     digitalWrite(LED, LOW);
 
     // Serial.print(sen_a);
@@ -127,10 +139,12 @@ void do_water_measurment() {
     // Serial.println(mili_liters_total);
 
     bool send = magic_code_box((float)sen_a, (float)sen_b, (float)sen_c);
-    if (send)
-        send_data_to_broker();
 
-    delay(80);
+    if (send && sender++ > 100) {
+        send_data_to_broker();
+        sender = 0;
+    }
+    delay(10);
 }
 
 void setup() {

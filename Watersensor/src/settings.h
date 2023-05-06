@@ -19,6 +19,7 @@ const char* mqtt_password = "ccc";
 const int   mqtt_port     = 1883;
 
 
+
 #define SENS_A A0
 #define SENS_B A1
 #define SENS_C A2
@@ -29,27 +30,17 @@ uint32_t mili_liters_total = 0; // * since boot
 uint32_t old_sensor_value = 0;
 bool under_value = false;
 
+uint32_t sen_a = 0;
+uint32_t sen_b = 0;
+uint32_t sen_c = 0;
 
-static float mina = 3000, minb = 3000, minc = 3000;
-
-#define BUFFER_SIZE 256
-struct data_buffer {
-    uint32_t sens_a[BUFFER_SIZE];
-    uint32_t sen_a_pos = 0;
-
-    uint32_t sens_b[BUFFER_SIZE];
-    uint32_t sen_b_pos = 0;
-
-    uint32_t sens_c[BUFFER_SIZE];
-    uint32_t sen_c_pos = 0;
-};
 
 
 
 #define PI_3 1.0471975512
 #define PI2_3 2.09439510239
-#define PI2 6.28318530718
-#define PI  3.14159265358
+// #define PI2 6.28318530718
+// #define PI  3.14159265358
 
 
 
@@ -190,8 +181,29 @@ void send_data_to_broker() {
         mqtt_client.loop();
     }
 
-    // send_metric("pulse", 500);
     send_metric("total_after_boot", mili_liters_total);
+    uint32_t value = (uint32_t)   (((uint32_t)sen_c & 0x3FF) << 20) + (((uint32_t)sen_b & 0x3FF) << 10) + (((uint32_t)sen_a & 0x3FF));
+    send_metric("sens_all", value);
+    uint32_t value2 = (uint32_t)   (((uint32_t)minc & 0x3FF) << 20) + (((uint32_t)minb & 0x3FF) << 10) + (((uint32_t)mina & 0x3FF));
+    send_metric("min_all", value2);
+
+
+    // Serial.print((uint32_t)sen_a&0x3FF);
+    // Serial.print("  ");
+    // Serial.print(((uint32_t)sen_b&0x3FF)<<10);
+    // Serial.print("  ");
+    // Serial.print(((uint32_t)sen_c&0x3FF)<<20);
+    // Serial.print("  ");
+
+    Serial.println(value);
+
+    // send_metric("sens_a", sen_a);
+    // send_metric("sens_b", sen_b);
+    // send_metric("sens_c", sen_c);
+    // send_metric("mina", mina);
+    // send_metric("minb", minb);
+    // send_metric("minc", minc);
+
 }
 
 
