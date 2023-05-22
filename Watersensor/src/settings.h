@@ -30,6 +30,11 @@ uint32_t mili_liters_total = 0; // * since boot
 uint32_t old_sensor_value = 0;
 bool under_value = false;
 
+// * max value of esp32-c3 adc value is 2.5V
+float mina = 2500, minb = 2500, minc = 2500;
+volatile int32_t liters = 0;
+volatile int8_t phase = 0;
+
 uint32_t sen_a = 0;
 uint32_t sen_b = 0;
 uint32_t sen_c = 0;
@@ -51,7 +56,7 @@ uint32_t sen_c = 0;
 long LAST_RECONNECT_ATTEMPT = 0;
 
 // * MQTT network settings
-#define MQTT_MAX_RECONNECT_TRIES 5
+#define MQTT_MAX_RECONNECT_TRIES 1
 
 // * MQTT root topic
 #define MQTT_ROOT_TOPIC "MuinoWaterMeter"
@@ -182,10 +187,10 @@ void send_data_to_broker() {
     }
 
     send_metric("total_after_boot", mili_liters_total);
-    uint32_t value = (uint32_t)   (((uint32_t)sen_c & 0x3FF) << 20) + (((uint32_t)sen_b & 0x3FF) << 10) + (((uint32_t)sen_a & 0x3FF));
-    send_metric("sens_all", value);
-    uint32_t value2 = (uint32_t)   (((uint32_t)minc & 0x3FF) << 20) + (((uint32_t)minb & 0x3FF) << 10) + (((uint32_t)mina & 0x3FF));
-    send_metric("min_all", value2);
+    // uint32_t value = (uint32_t)   (((uint32_t)sen_c & 0x3FF) << 20) + (((uint32_t)sen_b & 0x3FF) << 10) + (((uint32_t)sen_a & 0x3FF));
+    // send_metric("sens_all", value);
+    // uint32_t value2 = (uint32_t)   (((uint32_t)minc & 0x3FF) << 20) + (((uint32_t)minb & 0x3FF) << 10) + (((uint32_t)mina & 0x3FF));
+    // send_metric("min_all", value2);
 
 
     // Serial.print((uint32_t)sen_a&0x3FF);
@@ -195,7 +200,7 @@ void send_data_to_broker() {
     // Serial.print(((uint32_t)sen_c&0x3FF)<<20);
     // Serial.print("  ");
 
-    Serial.println(value);
+    // Serial.println(value);
 
     // send_metric("sens_a", sen_a);
     // send_metric("sens_b", sen_b);
