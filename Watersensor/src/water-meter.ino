@@ -15,8 +15,6 @@
 #include "settings.h"
 #include "Arduino.h"
 #include "fb_gfx.h"
-#include "soc/soc.h"          //disable brownout problems#include "jpge_.h"
-#include <soc/rtc_cntl_reg.h> //disable brownout problems
 #include <esp_http_server.h>
 
 #include <math.h>
@@ -98,7 +96,7 @@ int magic_code_box(float sen_a, float sen_b, float sen_c) {
     minc = mini_average(minc, sen_c);
 
     // * Add minima + amplitude to signal to get zerocrossing
-    float amplitude = 50.0;
+    float amplitude = 25.0; // was 50
     float a = sen_a - mina + amplitude;
     float b = sen_b - minb + amplitude;
     float c = sen_c - minc + amplitude;
@@ -107,7 +105,7 @@ int magic_code_box(float sen_a, float sen_b, float sen_c) {
     // * Get amount of liters
     phase_iter((int16_t)a, (int16_t)b, (int16_t)c);
 
-    float liters_float = (float)liters + ((float)phase / 6.0);
+    volatile float liters_float = (float)liters + ((float)phase / 6.0);
 
     mili_liters_total = (uint32_t)(liters_float*1000);
 
@@ -115,6 +113,42 @@ int magic_code_box(float sen_a, float sen_b, float sen_c) {
 }
 
 int sender = 0;
+const int moving_avarage = 8;
+// * keeping track of s peeds
+uint32_t average1 = 0;
+uint32_t average2 = 0;
+uint32_t average3 = 0;
+uint32_t average4 = 0;
+uint32_t average5 = 0;
+uint32_t average6 = 0;
+uint32_t average7 = 0;
+uint32_t average8 = 0;
+
+uint32_t averageb1 = 0;
+uint32_t averageb2 = 0;
+uint32_t averageb3 = 0;
+uint32_t averageb4 = 0;
+uint32_t averageb5 = 0;
+uint32_t averageb6 = 0;
+uint32_t averageb7 = 0;
+uint32_t averageb8 = 0;
+
+uint32_t averagec1 = 0;
+uint32_t averagec2 = 0;
+uint32_t averagec3 = 0;
+uint32_t averagec4 = 0;
+uint32_t averagec5 = 0;
+uint32_t averagec6 = 0;
+uint32_t averagec7 = 0;
+uint32_t averagec8 = 0;
+
+
+
+
+
+
+
+
 void do_water_measurment() {
 
     digitalWrite(LED, HIGH);
@@ -123,28 +157,106 @@ void do_water_measurment() {
     sen_b = analogReadMilliVolts(SENS_B);
     sen_c = analogReadMilliVolts(SENS_C);
     digitalWrite(LED, LOW);
+    delay(5);
 
-    // Serial.print(sen_a);
-    // Serial.print("  ");
-    // Serial.print(sen_b);
-    // Serial.print("  ");
-    // Serial.print(sen_c);
-    // Serial.print("  ");
-    // Serial.print(mina);
-    // Serial.print("  ");
-    // Serial.print(minb);
-    // Serial.print("  ");
-    // Serial.print(minc);
-    // Serial.print("  ");
-    // Serial.println(mili_liters_total);
 
+    uint32_t sen_a_zero = analogReadMilliVolts(SENS_A);
+    uint32_t sen_b_zero = analogReadMilliVolts(SENS_B);
+    uint32_t sen_c_zero = analogReadMilliVolts(SENS_C);
+
+
+
+
+    Serial.print(esp_timer_get_time());
+    Serial.print(";");
+    Serial.print(sen_a);
+    Serial.print(";");
+    Serial.print(sen_b);
+    Serial.print(";");
+    Serial.print(sen_c);
+
+    Serial.print(";");
+    Serial.print(mina);
+    Serial.print(";");
+    Serial.print(minb);
+    Serial.print(";");
+    Serial.print(minc);
+    Serial.print(";");
+
+    Serial.print(sen_a_zero);
+    Serial.print(";");
+    Serial.print(sen_b_zero);
+    Serial.print(";");
+    Serial.print(sen_c_zero);
+    Serial.print(";");
+
+
+    average1 = sen_a_zero;
+    sen_a_zero = (average1 + average2 + average3 + average4+average5 + average6 + average7 + average8) / 8;
+    average8 = average7;
+    average7 = average6;
+    average6 = average5;
+    average5 = average4;
+    average4 = average3;
+    average3 = average2;
+    average2 = average1;
+
+
+
+
+  averageb1 = sen_b_zero;
+    sen_b_zero = (averageb1 + averageb2 + averageb3 + averageb4+averageb5 + averageb6 + averageb7 + averageb8) / 8;
+    averageb8 = averageb7;
+    averageb7 = averageb6;
+    averageb6 = averageb5;
+    averageb5 = averageb4;
+    averageb4 = averageb3;
+    averageb3 = averageb2;
+    averageb2 = averageb1;
+
+
+  averagec1 = sen_c_zero;
+    sen_c_zero = (averagec1 + averagec2 + averagec3 + averagec4+averagec5 + averagec6 + averagec7 + averagec8) / 8;
+    averagec8 = averagec7;
+    averagec7 = averagec6;
+    averagec6 = averagec5;
+    averagec5 = averagec4;
+    averagec4 = averagec3;
+    averagec3 = averagec2;
+    averagec2 = averagec1;
+
+
+    Serial.print(sen_a_zero);
+    Serial.print(";");
+    Serial.print(sen_b_zero);
+    Serial.print(";");
+    Serial.print(sen_c_zero);
+    Serial.print(";");
+    Serial.print(phase);
+    Serial.print(";");
+    Serial.print(liters);
+    Serial.print(";");
+    Serial.println(mili_liters_total);
+
+    sen_a = sen_a - sen_a_zero;
+    sen_b = sen_b - sen_b_zero;
+    sen_c = sen_c - sen_c_zero;
     bool send = magic_code_box((float)sen_a, (float)sen_b, (float)sen_c);
 
-    if (send && sender++ > 100) {
+    if (send && sender++ > 3000) {
         send_data_to_broker();
-        sender = 0;
+        // sender = 0;
     }
-    delay(10);
+    // if (sender % 10 == 0) {
+    //     uint32_t value = (uint32_t)(((uint32_t)sen_c & 0x3FF) << 20) + (((uint32_t)sen_b & 0x3FF) << 10) + (((uint32_t)sen_a & 0x3FF));
+    //     Serial.print(value);
+    //     Serial.print("\t");
+    //     uint32_t value2 = (uint32_t)(((uint32_t)minc & 0x3FF) << 20) + (((uint32_t)minb & 0x3FF) << 10) + (((uint32_t)mina & 0x3FF));
+    //     Serial.print(value2);
+    //     Serial.print("\t");
+    //     Serial.println(mili_liters_total);
+    // }
+    delay(5);
 }
 
 void setup() {
@@ -180,29 +292,29 @@ void setup() {
     // Port defaults to 8266
     // ArduinoOTA.setPort(8266);
 
-    // Hostname defaults to esp8266-[ChipID]
-    ArduinoOTA.setHostname(HOSTNAME);
+    // // Hostname defaults to esp8266-[ChipID]
+    // ArduinoOTA.setHostname(HOSTNAME);
 
-    // No authentication by default
-    // ArduinoOTA.setPassword((const char *)"123");
+    // // No authentication by default
+    // // ArduinoOTA.setPassword((const char *)"123");
 
-    ArduinoOTA.onStart([]() { Serial.println("Start"); });
-    ArduinoOTA.onEnd([]() { Serial.println("\nEnd"); });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); });
-    ArduinoOTA.onError([](ota_error_t error) {
-        Serial.printf("Error[%u]: ", error);
-        if (error == OTA_AUTH_ERROR)
-            Serial.println("Auth Failed");
-        else if (error == OTA_BEGIN_ERROR)
-            Serial.println("Begin Failed");
-        else if (error == OTA_CONNECT_ERROR)
-            Serial.println("Connect Failed");
-        else if (error == OTA_RECEIVE_ERROR)
-            Serial.println("Receive Failed");
-        else if (error == OTA_END_ERROR)
-            Serial.println("End Failed");
-    });
-    ArduinoOTA.begin();
+    // ArduinoOTA.onStart([]() { Serial.println("Start"); });
+    // ArduinoOTA.onEnd([]() { Serial.println("\nEnd"); });
+    // ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); });
+    // ArduinoOTA.onError([](ota_error_t error) {
+    //     Serial.printf("Error[%u]: ", error);
+    //     if (error == OTA_AUTH_ERROR)
+    //         Serial.println("Auth Failed");
+    //     else if (error == OTA_BEGIN_ERROR)
+    //         Serial.println("Begin Failed");
+    //     else if (error == OTA_CONNECT_ERROR)
+    //         Serial.println("Connect Failed");
+    //     else if (error == OTA_RECEIVE_ERROR)
+    //         Serial.println("Receive Failed");
+    //     else if (error == OTA_END_ERROR)
+    //         Serial.println("End Failed");
+    // });
+    // ArduinoOTA.begin();
 
     pinMode(SENS_A, INPUT); // ADC 0
     pinMode(SENS_B, INPUT); // ADC 1
@@ -212,8 +324,11 @@ void setup() {
     digitalWrite(LIGHT_SEN_ENABLE, HIGH);
 
     // * Setup MQTT
-    Serial.printf("MQTT connecting to: %s:%d\n", mqtt_server, mqtt_port);
+    // Serial.printf("MQTT connecting to: %s:%d\n", mqtt_server, mqtt_port);
     mqtt_client.setServer(mqtt_server, mqtt_port);
+
+
+    Serial.println("`time;sen_a;sen_b;sen_c;min_a;min_b;min_c;sen_a_zero;sen_b_zero;sen_c_zero;sen_a_zero;sen_b_zero;sen_c_zero;phase;liters;mili_liters_total");
 }
 
 void loop() {
