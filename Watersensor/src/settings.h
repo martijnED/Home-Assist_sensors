@@ -3,8 +3,8 @@
 // *************************************************
 // * Configurble settings, change if needed
 // *************************************************
-const char* ssid     = "cc";
-const char* password = "ccc";
+const char* ssid     = "Muino";
+const char* password = "SexyBoy0165";
 
 // * static ip adress
 IPAddress static_ip(192, 168, 1, 10);
@@ -14,9 +14,10 @@ IPAddress subnet_mask(255, 255, 255, 0);
 
 // Your MQTT broker address and credentials
 const char* mqtt_server   = "192.168.1.5";
-const char* mqtt_user     = "ccc";
-const char* mqtt_password = "ccc";
+const char* mqtt_user     = "martijn";
+const char* mqtt_password = "sertvbwp45oj";
 const int   mqtt_port     = 1883;
+
 
 
 
@@ -35,18 +36,14 @@ float mina = 2500, minb = 2500, minc = 2500;
 volatile int32_t liters = 0;
 volatile int8_t phase = 0;
 
-uint32_t sen_a = 0;
-uint32_t sen_b = 0;
-uint32_t sen_c = 0;
+int16_t sen_a = 0;
+int16_t sen_b = 0;
+int16_t sen_c = 0;
 
 
 
-
-#define PI_3 1.0471975512
-#define PI2_3 2.09439510239
-// #define PI2 6.28318530718
-// #define PI  3.14159265358
-
+#define M_PI 3.14159265358979323846 /* pi */
+#define PI2_3 (M_PI * 2 / 3)
 
 
 // * The hostname of our little creature

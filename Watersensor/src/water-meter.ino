@@ -18,9 +18,41 @@
 #include <esp_http_server.h>
 
 #include <math.h>
+#include "watermeter.h"
+
+// * finding lowest value
+#define ALPHA_COR 0.01 // Value between 0-1
 
 
-#define ALPHA_COR 0.1 // Value between 0-1
+
+int sender = 0;
+
+
+
+
+
+struct state_t
+{
+    int8_t phase = 0;
+    int8_t fine = 0;
+    int32_t liters = 0;
+
+    int16_t a_min = 0;
+    int16_t b_min = 0;
+    int16_t c_min = 0;
+
+    int16_t a_max = 0;
+    int16_t b_max = 0;
+    int16_t c_max = 0;
+};
+
+
+
+
+
+
+
+
 float mini_average(float x, float y) {
     if ((x + 5) <= y && y > 10) {
         return x;
@@ -29,121 +61,153 @@ float mini_average(float x, float y) {
     }
 }
 
-// float phase_iter(float a, float b, float c, float mina, float minb, float minc, float epsilon, float amplitude) {
-//     static float phase = 0;
-//     float        less  = (a + amplitude - mina) * sin(phase - epsilon) + (b + amplitude - minb) * sin(phase - epsilon + PI2_3) + (c + amplitude - minc) * sin(phase - epsilon - PI2_3);
-//     float        same  = (a + amplitude - mina) * sin(phase) + (b + amplitude - minb) * sin(phase + PI2_3) + (c + amplitude - minc) * sin(phase - PI2_3);
-//     float        more  = (a + amplitude - mina) * sin(phase + epsilon) + (b + amplitude - minb) * sin(phase + epsilon + PI2_3) + (c + amplitude - minc) * sin(phase + epsilon - PI2_3);
-//     if (more > same && more > less)
-//         phase += epsilon;
-//     if (less > same && less > more)
-//         phase -= epsilon;
-//     return phase;
-// }
 
-float phase_iter_float(float phase, float a, float b, float c) {
-    // * Liter berekening
-    // * Amplitude voor evenwichtspunt
-    // * asin^2(σ)+bsin^2(σ+π/3)+c*sin^3(σ-π/3)
-    // * a⋅sin²(σ±ε)+b⋅sin²(σ±ε+π/3)+c⋅sin²(σ±ε-π/3)
+bool not_inited = true;
+static state_t state;
 
-    float sin1 = sin(phase);
-    float sin2 = sin(phase + PI2_3);
-    float sin3 = -sin2; // sin(phase + PI4_3);
-    float less = a * sin3 + b * sin1 + c * sin2;
-    float same = a * sin1 + b * sin2 + c * sin3;
-    float more = a * sin2 + b * sin3 + c * sin1;
-    if (more > same && more >= less)
-        return phase + PI_3;
-    else if (less > same)
-        return phase - PI_3;
-    else
-        return phase;
-}
+int magic_code_box(int16_t sen_a, int16_t sen_b, int16_t sen_c) {
 
-void phase_iter(int16_t a, int16_t b, int16_t c) {
-    int16_t pn[5];
-    if (phase & 1)
-        pn[0] = a + a - b - c,
-        pn[1] = b + b - a - c,
-        pn[2] = c + c - a - b;
-    else
-        pn[0] = b + c - a - a,
-        pn[1] = a + c - b - b,
-        pn[2] = a + b - c - c;
-    pn[3] = pn[0], pn[4] = pn[1];
-    int16_t i = phase > 2 ? phase - 3 : phase;
-    if (pn[i + 2] < pn[i + 1] && pn[i + 2] < pn[i])
-        if (pn[i + 1] > pn[i])
-            phase++;
-        else
-            phase--;
-    if (phase == 6)
-        liters++, phase = 0;
-    else if (phase == -1)
-        liters--, phase = 5;
-    else
-        return; // false
-    return; // true
-}
+    if (not_inited) {
+        state.phase  = 0;
+        state.fine   = 0;
+        state.liters = 0;
+
+        state.a_min = sen_a;
+        state.b_min = sen_b;
+        state.c_min = sen_c;
+
+        state.a_max = sen_a + 50;
+        state.b_max = sen_b + 50;
+        state.c_max = sen_c + 50;
+        not_inited      = false;
+    }
+
+    if(mili_liters_total < 1){
+        // * Calculate minimum value
+        state.a_min = mini_average(state.a_min, sen_a);
+        state.b_min = mini_average(state.b_min, sen_b);
+        state.c_min = mini_average(state.c_min, sen_c);
+    }
 
 
-int magic_code_box(float sen_a, float sen_b, float sen_c) {
+    int amp = 25;
+    int a_zc = (state.a_min + state.a_max) >> 1;
+    int b_zc = (state.b_min + state.b_max) >> 1;
+    int c_zc = (state.c_min + state.c_max) >> 1;
 
-    // * Calculate minimum value
-    mina = mini_average(mina, sen_a);
-    minb = mini_average(minb, sen_b);
-    minc = mini_average(minc, sen_c);
+    int16_t sa = sen_a - a_zc;
+    int16_t sb = sen_b - b_zc;
+    int16_t sc = sen_c - c_zc;
 
-    // * Add minima + amplitude to signal to get zerocrossing
-    float amplitude = 25.0; // was 50
-    float a = sen_a - mina + amplitude;
-    float b = sen_b - minb + amplitude;
-    float c = sen_c - minc + amplitude;
+    phase_coarse_iter(&state, sa, sb, sc); // mutable reference to state
+    phase_fine_iter(&state, sa, sb, sc);
+    magnitude_offset_iter(&state, sen_a, sen_b, sen_c); // mut
 
+    float liters_float_coarse = (float)state.liters + ((float)state.liters / 6);
+    float liters_float_fine = (float)state.liters + ((float)state.phase / 6) + ((float)state.fine / (16 * 6));
 
-    // * Get amount of liters
-    phase_iter((int16_t)a, (int16_t)b, (int16_t)c);
+    uint32_t mililiters = (uint32_t)(liters_float_fine*1000);
 
-    volatile float liters_float = (float)liters + ((float)phase / 6.0);
-
-    mili_liters_total = (uint32_t)(liters_float*1000);
+    if (mili_liters_total < mililiters){
+        mili_liters_total = mililiters;
+    }
 
     return 1;
 }
 
-int sender = 0;
-const int moving_avarage = 8;
-// * keeping track of s peeds
-uint32_t average1 = 0;
-uint32_t average2 = 0;
-uint32_t average3 = 0;
-uint32_t average4 = 0;
-uint32_t average5 = 0;
-uint32_t average6 = 0;
-uint32_t average7 = 0;
-uint32_t average8 = 0;
-
-uint32_t averageb1 = 0;
-uint32_t averageb2 = 0;
-uint32_t averageb3 = 0;
-uint32_t averageb4 = 0;
-uint32_t averageb5 = 0;
-uint32_t averageb6 = 0;
-uint32_t averageb7 = 0;
-uint32_t averageb8 = 0;
-
-uint32_t averagec1 = 0;
-uint32_t averagec2 = 0;
-uint32_t averagec3 = 0;
-uint32_t averagec4 = 0;
-uint32_t averagec5 = 0;
-uint32_t averagec6 = 0;
-uint32_t averagec7 = 0;
-uint32_t averagec8 = 0;
 
 
 
+
+
+// a_zc = 150;
+// b_zc = 300;
+// c_zc = 110;
+
+#define SMOOTHING_FACTOR 3 // 2 - 10
+void magnitude_offset_iter(struct state_t *state, int16_t a, int16_t b, int16_t c)
+{
+    int8_t phase = state->phase;
+    if (state->fine > 8){
+        phase = (phase+7)%6;
+    }
+    int16_t *a_min = &state->a_min;
+    int16_t *b_min = &state->b_min;
+    int16_t *c_min = &state->c_min;
+    int16_t *a_max = &state->a_max;
+    int16_t *b_max = &state->b_max;
+    int16_t *c_max = &state->c_max;
+    int16_t *u[6] = {a_max, b_min, c_max, a_min, b_max, c_min};
+    int16_t *signal[6] = {&a, &b, &c, &a, &b, &c};
+    if (state->liters > 2)
+    {
+        if  ((state->fine > 14) || state->fine < 3)
+            *u[phase] = (((((*u[phase]) << SMOOTHING_FACTOR) - (*u[phase]) + *signal[phase]) >> SMOOTHING_FACTOR) + 1 - (phase & 1));
+    }
+    else{
+    *a_min = a < *a_min ? (*a_min*4+a)/5 : *a_min;
+    *b_min = b < *b_min ? (*b_min*4+b)/5 : *b_min;
+    *c_min = c < *c_min ? (*c_min*4+c)/5 : *c_min;
+    *a_max = *a_min + 100;
+    *b_max = *b_min + 100;
+    *c_max = *c_min + 100;
+    }
+}
+
+// check with three 2pi/3 steps peak autocorrelation and adjust towards max by pi/3 steps
+// 2cos(0)=2 2cos(pi/3)=1 2cos(2pi/3)=-1 2cos(pi)=-2 2cos(4pi/3)=-1 2cos(5pi/3)=1
+void phase_coarse_iter(struct state_t *state, int16_t a, int16_t b, int16_t c)
+{
+    int8_t *phase = &state->phase;
+    int32_t *liters = &state->liters;
+    short pn[5];
+    if (*phase & 1)
+        pn[0] = a + a - b - c,
+        pn[1] = b + b - a - c,
+        pn[2] = c + c - a - b; // same
+    else
+        pn[0] = b + c - a - a,     // less
+            pn[1] = a + c - b - b, // more
+            pn[2] = a + b - c - c; // same
+    pn[3] = pn[0], pn[4] = pn[1];
+    short i = *phase > 2 ? *phase - 3 : *phase;
+    if (pn[i + 2] < pn[i + 1] && pn[i + 2] < pn[i])
+        if (pn[i + 1] > pn[i])
+            (*phase)++;
+        else
+            (*phase)--;
+    if (*phase == 6)
+        (*liters)++, *phase = 0;
+    else if (*phase == -1)
+        (*liters)--, *phase = 5;
+}
+
+// given pi/3 coarse estimate of phase, calculate autocorrelation of signals within that pi/3 range
+#define AC_STEPS 16
+int phase_fine_iter(struct state_t *state, int16_t a, int16_t b, int16_t c)
+{
+    const float step = (M_PI) / (3 * AC_STEPS);
+    float array[AC_STEPS * 3 + 1];
+    int largest_index = -AC_STEPS;
+    float largest = 0;
+
+    for (int i = -AC_STEPS; i <= (AC_STEPS * 2); i++)
+    {
+        float x = (state->phase * M_PI / 3) + (step * i);
+        float cora = a * cos(x);
+        float corb = b * cos(x + (PI2_3));
+        float corc = c * cos(x - (PI2_3));
+        float cor = cora + corb + corc;
+        array[i + AC_STEPS] = cor;
+        if (cor > largest)
+        {
+            largest = cor;
+            largest_index = i;
+            state->fine = largest_index;
+        }
+    }
+    return largest_index;
+}
 
 
 
@@ -160,92 +224,44 @@ void do_water_measurment() {
     delay(5);
 
 
-    uint32_t sen_a_zero = analogReadMilliVolts(SENS_A);
-    uint32_t sen_b_zero = analogReadMilliVolts(SENS_B);
-    uint32_t sen_c_zero = analogReadMilliVolts(SENS_C);
+    int16_t sen_a_zero = analogReadMilliVolts(SENS_A);
+    int16_t sen_b_zero = analogReadMilliVolts(SENS_B);
+    int16_t sen_c_zero = analogReadMilliVolts(SENS_C);
 
 
 
 
-    Serial.print(esp_timer_get_time());
-    Serial.print(";");
-    Serial.print(sen_a);
-    Serial.print(";");
-    Serial.print(sen_b);
-    Serial.print(";");
-    Serial.print(sen_c);
+    // Serial.print(esp_timer_get_time());
+    // Serial.print("\t");
+    // Serial.print(sen_a-sen_a_zero);
+    // Serial.print("\t");
+    // Serial.print(sen_b-sen_b_zero);
+    // Serial.print("\t");
+    // Serial.print(sen_c-sen_c_zero);
 
-    Serial.print(";");
-    Serial.print(mina);
-    Serial.print(";");
-    Serial.print(minb);
-    Serial.print(";");
-    Serial.print(minc);
-    Serial.print(";");
+    // Serial.print("\t");
+    // Serial.print(state.a_min);
+    // Serial.print("\t");
+    // Serial.print(state.b_min);
+    // Serial.print("\t");
+    // Serial.print(state.c_min);
 
-    Serial.print(sen_a_zero);
-    Serial.print(";");
-    Serial.print(sen_b_zero);
-    Serial.print(";");
-    Serial.print(sen_c_zero);
-    Serial.print(";");
-
-
-    average1 = sen_a_zero;
-    sen_a_zero = (average1 + average2 + average3 + average4+average5 + average6 + average7 + average8) / 8;
-    average8 = average7;
-    average7 = average6;
-    average6 = average5;
-    average5 = average4;
-    average4 = average3;
-    average3 = average2;
-    average2 = average1;
-
-
-
-
-  averageb1 = sen_b_zero;
-    sen_b_zero = (averageb1 + averageb2 + averageb3 + averageb4+averageb5 + averageb6 + averageb7 + averageb8) / 8;
-    averageb8 = averageb7;
-    averageb7 = averageb6;
-    averageb6 = averageb5;
-    averageb5 = averageb4;
-    averageb4 = averageb3;
-    averageb3 = averageb2;
-    averageb2 = averageb1;
-
-
-  averagec1 = sen_c_zero;
-    sen_c_zero = (averagec1 + averagec2 + averagec3 + averagec4+averagec5 + averagec6 + averagec7 + averagec8) / 8;
-    averagec8 = averagec7;
-    averagec7 = averagec6;
-    averagec6 = averagec5;
-    averagec5 = averagec4;
-    averagec4 = averagec3;
-    averagec3 = averagec2;
-    averagec2 = averagec1;
-
-
-    Serial.print(sen_a_zero);
-    Serial.print(";");
-    Serial.print(sen_b_zero);
-    Serial.print(";");
-    Serial.print(sen_c_zero);
-    Serial.print(";");
-    Serial.print(phase);
-    Serial.print(";");
-    Serial.print(liters);
-    Serial.print(";");
-    Serial.println(mili_liters_total);
+    // Serial.print("\t");
+    // Serial.print(state.phase);
+    // Serial.print("\t");
+    // Serial.print(state.liters);
+    // Serial.print("\t");
+    // Serial.println(mili_liters_total);
 
     sen_a = sen_a - sen_a_zero;
     sen_b = sen_b - sen_b_zero;
     sen_c = sen_c - sen_c_zero;
-    bool send = magic_code_box((float)sen_a, (float)sen_b, (float)sen_c);
+    bool send = magic_code_box(sen_a, sen_b, sen_c);
 
     if (send && sender++ > 3000) {
         send_data_to_broker();
-        // sender = 0;
+        Serial.println(mili_liters_total);
+        sender = 0;
     }
     // if (sender % 10 == 0) {
     //     uint32_t value = (uint32_t)(((uint32_t)sen_c & 0x3FF) << 20) + (((uint32_t)sen_b & 0x3FF) << 10) + (((uint32_t)sen_a & 0x3FF));
