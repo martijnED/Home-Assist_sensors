@@ -191,39 +191,39 @@ void do_water_measurment() {
     Serial.print(";");
 
 
-//     average1 = sen_a_zero;
-//     sen_a_zero = (average1 + average2 + average3 + average4+average5 + average6 + average7 + average8) / 8;
-//     average8 = average7;
-//     average7 = average6;
-//     average6 = average5;
-//     average5 = average4;
-//     average4 = average3;
-//     average3 = average2;
-//     average2 = average1;
+    average1 = sen_a_zero;
+    sen_a_zero = (average1 + average2 + average3 + average4+average5 + average6 + average7 + average8) / 8;
+    average8 = average7;
+    average7 = average6;
+    average6 = average5;
+    average5 = average4;
+    average4 = average3;
+    average3 = average2;
+    average2 = average1;
 
 
 
 
-//   averageb1 = sen_b_zero;
-//     sen_b_zero = (averageb1 + averageb2 + averageb3 + averageb4+averageb5 + averageb6 + averageb7 + averageb8) / 8;
-//     averageb8 = averageb7;
-//     averageb7 = averageb6;
-//     averageb6 = averageb5;
-//     averageb5 = averageb4;
-//     averageb4 = averageb3;
-//     averageb3 = averageb2;
-//     averageb2 = averageb1;
+  averageb1 = sen_b_zero;
+    sen_b_zero = (averageb1 + averageb2 + averageb3 + averageb4+averageb5 + averageb6 + averageb7 + averageb8) / 8;
+    averageb8 = averageb7;
+    averageb7 = averageb6;
+    averageb6 = averageb5;
+    averageb5 = averageb4;
+    averageb4 = averageb3;
+    averageb3 = averageb2;
+    averageb2 = averageb1;
 
 
-//   averagec1 = sen_c_zero;
-//     sen_c_zero = (averagec1 + averagec2 + averagec3 + averagec4+averagec5 + averagec6 + averagec7 + averagec8) / 8;
-//     averagec8 = averagec7;
-//     averagec7 = averagec6;
-//     averagec6 = averagec5;
-//     averagec5 = averagec4;
-//     averagec4 = averagec3;
-//     averagec3 = averagec2;
-//     averagec2 = averagec1;
+  averagec1 = sen_c_zero;
+    sen_c_zero = (averagec1 + averagec2 + averagec3 + averagec4+averagec5 + averagec6 + averagec7 + averagec8) / 8;
+    averagec8 = averagec7;
+    averagec7 = averagec6;
+    averagec6 = averagec5;
+    averagec5 = averagec4;
+    averagec4 = averagec3;
+    averagec3 = averagec2;
+    averagec2 = averagec1;
 
 
     Serial.print(sen_a_zero);
