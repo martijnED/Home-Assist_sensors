@@ -74,6 +74,12 @@ bool mqtt_reconnect() {
         MQTT_RECONNECT_RETRIES++;
         Serial.printf("MQTT connection attempt %d / %d ...\n", MQTT_RECONNECT_RETRIES, MQTT_MAX_RECONNECT_TRIES);
 
+        if (WiFi.waitForConnectResult() != WL_CONNECTED || WiFi.status() != WL_CONNECTED) {
+            Serial.println("WiFi Connect Failed! reconnecting...");
+            WiFi.disconnect();
+            WiFi.begin(ssid, password);
+        }
+
         // * Attempt to connect
         if (mqtt_client.connect(HOSTNAME, mqtt_user, mqtt_password)) {
             Serial.println(F("MQTT connected!"));
